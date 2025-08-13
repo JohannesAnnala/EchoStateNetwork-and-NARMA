@@ -122,3 +122,9 @@ for idx, input in enumerate(input_states_train):
     #print(occupation_nums_)
     print(W_out)
     print("")
+
+
+#Updates the output weights of network
+def update_W_out(learning_rate_: np.float64, reg_strength_: np.float64, Y_true_: tuple, Y_pred_: tuple, occupation_numbers_: np.array, W_out_: np.array, reservoir_size_: np.float64):
+    for i in range(reservoir_size_):
+        W_out_[i] = W_out_[i] - learning_rate_*(-occupation_numbers_[i]*(Y_true_ - Y_pred_) + reg_strength_*W_out_[i])
