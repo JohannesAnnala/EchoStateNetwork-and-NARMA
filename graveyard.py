@@ -128,3 +128,39 @@ for idx, input in enumerate(input_states_train):
 def update_W_out(learning_rate_: np.float64, reg_strength_: np.float64, Y_true_: tuple, Y_pred_: tuple, occupation_numbers_: np.array, W_out_: np.array, reservoir_size_: np.float64):
     for i in range(reservoir_size_):
         W_out_[i] = W_out_[i] - learning_rate_*(-occupation_numbers_[i]*(Y_true_ - Y_pred_) + reg_strength_*W_out_[i])
+
+
+#Function that creates a two-mode squeezed thermal state
+def init_sq_th(alpha_: np.float64, mean_n_: np.float64, truncate: int, a1_, a2_):
+
+    #Initialize the tmo-mode squeezing matrix and two-mode thermal state
+    two_mode_sq_ = qt.squeezing(a1_, a2_, -2*alpha_)
+    two_mode_th_ = qt.tensor(qt.thermal_dm(truncate, mean_n_), qt.thermal_dm(truncate, mean_n_))
+
+    #Return two-mode squeezed thermal state
+    return two_mode_sq_ @ two_mode_th_ @ two_mode_sq_.dag()
+
+def init_pho_add(alpha_: np.float64, truncate: int, a1_, a2_):
+    
+    #Initialize two-mode squeezing matrix and vacuum state 
+    two_mode_sq_ = qt.squeezing(a1_, a2_, 2*alpha_)
+    two_mode_vac_ = qt.tensor(qt.states.fock_dm(truncate,0), qt.states.fock_dm(truncate,0))
+
+    #Return two-mode photon added squeezed state
+    return  a1_.dag() @ a2_.dag() @ two_mode_sq_ @ two_mode_vac_ @ two_mode_sq_.dag() @ a2_ @ a1_
+
+def init_pho_sub(alpha_: np.float64, truncate: int, a1_, a2_):
+
+    #Initialize two-mode squeezing matrix and vacuum state 
+    two_mode_sq_ = qt.squeezing(a1_, a2_, 2*alpha_)
+    two_mode_vac_ = qt.tensor(qt.states.fock_dm(truncate,0), qt.states.fock_dm(truncate,0))
+
+    #Return two-mode photon subtracted squeezed state
+    return  a1_ @ a2_ @ two_mode_sq_ @ two_mode_vac_ @ two_mode_sq_.dag() @ a2_.dag() @ a1_.dag()
+
+def init_simple(c0_: np.float64, c1_: np.float64, truncate: int):
+
+    #Create the state according to the paper
+    state_ = c0_*qt.tensor(qt.states.basis(truncate,0), qt.states.basis(truncate,0)) + c1_*qt.tensor(qt.states.basis(truncate,1), qt.states.basis(truncate,1))
+
+    return state_ @ state_.dag()
