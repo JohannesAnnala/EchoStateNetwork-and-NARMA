@@ -1,3 +1,57 @@
+"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+The code for simulating the quantum reservoir does not work correctly in the covariance matrix presentation"
+
+
+
+
+
+
+
+
+
+It's close thought :)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""
+
+
 import numpy as np
 import copy
 from ridge import RidgeRegression
