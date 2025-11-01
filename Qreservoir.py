@@ -4,6 +4,8 @@ from tools import init_identity, tensor, dagger, partial_trace, rk4
 from Qtools import init_destroy, init_multipartite_dc_operators, init_dissipator, init_dissipators, expectation_value, assess_dm_entanglement
 from ridge import RidgeRegression
 
+import time
+
 class QReservoir:
     def __init__(self, gamma, reservoir_size=4, energy_truncate_level=5, reservoir_connectivity="alltoall"):
         self.reservoir_size = reservoir_size
@@ -68,7 +70,7 @@ class QReservoir:
 
     #Changes the input state interacting with the reservoir
     def inject_input(self, input):
-        self.rho_full = tensor([input, partial_trace(self.rho_full, "second", self.dims[1])])
+        self.rho_full = tensor([input, partial_trace(self.rho_full, "second", self.dims[0], self.dims[1])])
 
     def init_unitary_evolution(self):
 
@@ -91,9 +93,9 @@ class QReservoir:
             print("No can do")
 
         self.H_unitary = H_unitary_
-    
+        
     def init_cascaded_interaction(self, rho, interacting_mode):
-        return sum([input_str*(interacting_mode @ rho @ dagger(b) - dagger(b) @ interacting_mode @ rho) + (b @ rho @ dagger(interacting_mode) - rho @ dagger(interacting_mode) @ b) for input_str, b in zip(self.W_in, self.b_system)])
+        return sum([input_str*(interacting_mode @ rho @ dagger(b) - dagger(b) @ interacting_mode @ rho + b @ rho @ dagger(interacting_mode) - rho @ dagger(interacting_mode) @ b) for input_str, b in zip(self.W_in, self.b_system)])
 
     def rk4_timesteps(self, timesteps):
         self.step = 2*self.tau/timesteps
@@ -103,29 +105,43 @@ class QReservoir:
 
         def update_me(rho, t):
 
+            time_ = time.perf_counter()
             unitary_evolution_ = -1j * (self.H_unitary @ rho - rho @ self.H_unitary)
+            print(f"unitary {time.perf_counter()-time_}")
+            time_ = time.perf_counter()
             nonunitary_evolution_ = (self.gamma/2)*init_dissipators(rho, self.b_system) + (self.P/2)*init_dissipators(rho, self.b_dag_system)
+            print(f"nonunitary {time.perf_counter()-time_}")
 
             if 0 < t < self.tau:
+                time_ = time.perf_counter()
                 nonunitary_evolution_ += self.init_cascaded_interaction(rho, self.a_system[0]) + (self.eta/(2*self.gamma))*init_dissipator(rho, self.a_system[0])
+                print(f"1st mode {time.perf_counter()-time_}")
             elif self.tau < t < 2*self.tau:
+                time_ = time.perf_counter()
                 nonunitary_evolution_ += self.init_cascaded_interaction(rho, self.a_system[1]) + (self.eta/(2*self.gamma))*init_dissipator(rho, self.a_system[1])
-
+                print(f"2nd mode {time.perf_counter()-time_}")
             return unitary_evolution_ + nonunitary_evolution_
-    
+
+        full_time_ = time.perf_counter()
         for t in self.timesteps:
+            time_rk_ = time.perf_counter()
             self.rho_full = rk4(update_me, self.rho_full, t, self.step)
+            print(f"rk4 step {t} took {time.perf_counter()-time_rk_}")
+            print()
+        print(f"update took {time.perf_counter()-full_time_}")
         
     def measure_reservoir(self):
         return [expectation_value(self.rho_full, self.b_dag_system[i] @ self.b_system[i]) for i in range(self.reservoir_size)]
-
+        
     def update_and_measure_reservoir(self, inputs):
         measured_observables_ = []
-        for input in inputs:
+        for i,input in enumerate(inputs):
+            print(i)
             self.inject_input(input)
             self.update_reservoir()
             measured_observables_.append(self.measure_reservoir())
-        
+            print()
+
         return np.array(measured_observables_)
     
     def get_entanglement_values(self, inputs):
