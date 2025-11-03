@@ -4,6 +4,7 @@ from tools import init_identity, tensor, dagger, init_destroy, init_multipartite
 from ridge import RidgeRegression
 
 from sklearn.linear_model import Ridge
+import copy
 
 class QReservoir:
     def __init__(self, gamma, reservoir_size=4, energy_truncate_level=5, reservoir_connectivity="alltoall"):
@@ -28,22 +29,22 @@ class QReservoir:
         self.a_system, self.a_dag_system, self.b_system, self.b_dag_system = system_dops_[0], system_cops_[0], system_dops_[1], system_cops_[1]
         self.init_unitary_evolution()
 
-        self.A = [-1j * self.H_unitary - 0.5 * sum([self.gamma * self.b_dag_system[i] @ self.b_system[i] + self.P * self.b_system[i] @ self.b_dag_system[i] for i in range(self.reservoir_size)]),
-                  *[-1j * self.H_unitary - \
-                    sum([0.5 * self.gamma * self.b_dag_system[i] @ self.b_system[i] + 0.5 * self.P * self.b_system[i] @ self.b_dag_system[i] + self.W_in[i] * self.b_dag_system[i] @ self.a_system[k] for i in range(self.reservoir_size)]) - \
-                    0.5 * (self.eta/(2*self.gamma)) * self.a_dag_system[k] @ self.a_system[k] for k in range(2)]]
+        self.A = np.array([-1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag for b, b_dag in zip(self.b_system,self.b_dag_system)]),
+                           *[-1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag - w_in * b_dag @ a for b, b_dag, w_in in zip(self.b_system,self.b_dag_system,self.W_in)]) - \
+                             0.5 * (self.eta/gamma) * a_dag @ a for a, a_dag in zip(self.a_system,self.a_dag_system)]])
 
-        self.B = [1j * self.H_unitary - 0.5 * sum([self.gamma * self.b_dag_system[i] @ self.b_system[i] + self.P * self.b_system[i] @ self.b_dag_system[i] for i in range(self.reservoir_size)]),
-                  *[1j * self.H_unitary - \
-                    sum([0.5 * self.gamma * self.b_dag_system[i] @ self.b_system[i] + 0.5 * self.P * self.b_system[i] @ self.b_dag_system[i] + self.W_in[i] * self.a_dag_system[k] @ self.b_system[i] for i in range(self.reservoir_size)]) - \
-                    0.5 * (self.eta/(2*self.gamma)) * self.a_dag_system[k] @ self.a_system[k] for k in range(2)]]
+        self.B = np.array([1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag for b, b_dag in zip(self.b_system,self.b_dag_system)]),
+                           *[1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag - w_in * a_dag @ b for b, b_dag, w_in in zip(self.b_system,self.b_dag_system,self.W_in)]) - \
+                             0.5 * (self.eta/gamma) * a_dag @ a for a, a_dag in zip(self.a_system,self.a_dag_system)]])
 
-        self.C = [[self.gamma * self.b_system[i] + self.W_in[i] * self.a_system[k] for i in range(self.reservoir_size)] for k in range(2)]
+        self.C = np.array([[gamma * b + w_in * a for b, w_in in zip(self.b_system,self.W_in)] for a in self.a_system])
 
-        self.D = [sum([self.W_in[i] * self.b_system[i] for i in range(self.reservoir_size)]) + (self.eta/self.gamma) * self.a_system[k] for k in range(2)]
+        self.D = np.array([sum([w_in * b for b, w_in in zip(self.b_system,self.W_in)]) + (self.eta/gamma) * a for a in self.a_system])
 
-        self.b_system_gamma = [self.gamma * b for b in self.b_system]
-        self.b_dag_system_P = [self.P * b_dag for b_dag in self.b_dag_system]
+        self.b_system_gamma = np.array([gamma * b for b in self.b_system])
+        self.b_dag_system_P = np.array([0.1 * gamma * b_dag for b_dag in self.b_dag_system])
+
+        self.b_dag_b = np.array([b_dag @ b for b, b_dag in zip(self.b_system,self.b_dag_system)])
 
         self.entangled_forecast = Ridge(1.0)
         self.separable_forecast = Ridge(1.0)
@@ -125,11 +126,27 @@ class QReservoir:
     def inject_input(self, input):
         rho_new_ = np.zeros((self.dims[1],self.dims[1]), dtype=np.complex64)
         for i in range(self.dims[0]):
-            buffer = self.rho_full[i*self.dims[1]:(i+1)*self.dims[1], i*self.dims[1]:(i+1)*self.dims[1]]
+            #buffer = self.rho_full[i*self.dims[1]:(i+1)*self.dims[1], i*self.dims[1]:(i+1)*self.dims[1]]
             #print(np.round(buffer,3))
-            rho_new_ += buffer
+            rho_new_ += self.rho_full[i*self.dims[1]:(i+1)*self.dims[1], i*self.dims[1]:(i+1)*self.dims[1]]
+   
+        buffer = np.kron(input, rho_new_).round(8)
 
-        self.rho_full = np.kron(input, rho_new_)
+        tr_input = np.trace(input)
+        tr_res = np.trace(rho_new_)
+        tr_new = np.trace(buffer)
+        print(f"tr_input: {tr_input}")
+        print(f"tr_res: {tr_res}")
+        print(f"tr_new: {tr_new}")
+
+        tr_input = np.trace(input.round(8))
+        tr_res = np.trace(rho_new_.round(8))
+        tr_new = np.trace(buffer.round(8))
+        print(f"tr_input: {tr_input}")
+        print(f"tr_res: {tr_res}")
+        print(f"tr_new: {tr_new}")
+
+        self.rho_full = buffer
 
     def update_reservoir(self):
 
@@ -161,13 +178,16 @@ class QReservoir:
             rk4(t)
         
     def measure_reservoir(self):
-        return [np.real(expectation_value(self.rho_full, self.b_dag_system[i] @ self.b_system[i])) for i in range(self.reservoir_size)]
+        return [np.trace(self.rho_full @ b_dag_b) for b_dag_b in self.b_dag_b]
         
     def update_and_measure_reservoir(self, inputs):
         measured_observables_ = []
+        self.stored_rho = [self.rho_full]
         for i,input in enumerate(inputs):
             self.inject_input(input)
+            self.stored_rho.append(self.rho_full)
             self.update_reservoir()
+            self.stored_rho.append(self.rho_full)
             measured_observables_.append(self.measure_reservoir())
             print(i)
 
@@ -190,8 +210,8 @@ class QReservoir:
     def train_reservoir(self, inputs):
         self.train_measured_observables_ = self.update_and_measure_reservoir(inputs)
         self.train_Y_true_ = self.get_entanglement_values(inputs)
-        self.entangled_forecast.fit(self.train_measured_observables_, self.train_Y_true_[:,0])
-        self.separable_forecast.fit(self.train_measured_observables_, self.train_Y_true_[:,1])
+        #self.entangled_forecast.fit(self.train_measured_observables_, self.train_Y_true_[:,0])
+        #self.separable_forecast.fit(self.train_measured_observables_, self.train_Y_true_[:,1])
 
     def test_reservoir(self, inputs):
         self.test_measured_observables_ = self.update_and_measure_reservoir(inputs)
