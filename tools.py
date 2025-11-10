@@ -50,6 +50,12 @@ def partial_transpose(rho, part, dims_first, dims_second):
 def trace_norm(operator):
     return np.sum(np.abs(np.linalg.eigvals(operator)))
 
+def truncate_mantissa(operator, decimals):
+    return np.trunc(operator.real * 10**decimals) / 10**decimals + 1j * (np.trunc(operator.imag * 10**decimals) / 10**decimals)
+
+def real_diag(operator):
+    np.fill_diagonal(operator, np.diag(operator).real)
+
 def negativity(operator):
     return (trace_norm(operator)-1)/2
 
@@ -70,6 +76,9 @@ def rk4(function, initial_state, t, dt):
     k3_ = function(initial_state + 0.5 * dt * k2_, t + 0.5 * dt)
     k4_ = function(initial_state + dt * k3_, t + dt)
     return initial_state + (dt/6)*(k1_ + 2 * k2_ + 2 * k3_ + k4_)
+
+def data_standardize(data):
+    return (data - np.mean(data, axis=0))/np.std(data, axis=0)
 
 def init_identity(size):
     return np.eye(size)
@@ -120,16 +129,12 @@ def init_two_mode_th(mean_n, truncate):
 #Function that creates a two-mode squeezed thermal state
 def init_two_mode_sq_th(alpha, mean_n, truncate, a1, a2, rounding=None):
     
-    #Initialize the tmo-mode squeezing matrix and two-mode thermal state
+    #Initialize the two-mode thermal state
     sq_ = init_two_mode_sq(alpha, a1, a2)
     th_ = init_two_mode_th(mean_n, truncate)
 
-    if rounding:
-        sq_th_ = sq_ @ th_ @ dagger(sq_)
-        #Discard "error" imaginary values from diagonal
-        np.fill_diagonal(sq_th_, np.diag(sq_th_).real)
-        #Return two-mode squeezed thermal state
-        return sq_th_
+    if rounding:  
+        return truncate_mantissa(sq_ @ th_ @ dagger(sq_), rounding)
     
     return sq_ @ th_ @ dagger(sq_)
 

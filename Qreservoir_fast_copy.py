@@ -1,6 +1,6 @@
 import numpy as np
 from itertools import combinations
-from tools import init_identity, tensor, dagger, init_destroy, init_multipartite_dc_operators, expectation_value, assess_dm_entanglement, truncate_mantissa, real_diag, data_standardize
+from tools import init_identity, tensor, dagger, init_destroy, init_multipartite_dc_operators, expectation_value, assess_dm_entanglement
 from ridge import RidgeRegression
 
 from sklearn.linear_model import Ridge
@@ -27,24 +27,27 @@ class QReservoir:
 
         system_dops_, system_cops_ = init_multipartite_dc_operators([self.a,self.b],[2,reservoir_size])
         self.a_system, self.a_dag_system, self.b_system, self.b_dag_system = system_dops_[0], system_cops_[0], system_dops_[1], system_cops_[1]
-        self.init_unitary_evolution()
 
-        self.A = np.array([-1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag for b, b_dag in zip(self.b_system,self.b_dag_system)]),
-                           *[-1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag - w_in * b_dag @ a for b, b_dag, w_in in zip(self.b_system,self.b_dag_system,self.W_in)]) - \
-                             0.5 * (self.eta/gamma) * a_dag @ a for a, a_dag in zip(self.a_system,self.a_dag_system)]])
-
-        self.B = np.array([1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag for b, b_dag in zip(self.b_system,self.b_dag_system)]),
-                           *[1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag - w_in * a_dag @ b for b, b_dag, w_in in zip(self.b_system,self.b_dag_system,self.W_in)]) - \
-                             0.5 * (self.eta/gamma) * a_dag @ a for a, a_dag in zip(self.a_system,self.a_dag_system)]])
-
-        self.C = np.array([[gamma * b + w_in * a for b, w_in in zip(self.b_system,self.W_in)] for a in self.a_system])
-
-        self.D = np.array([sum([w_in * b for b, w_in in zip(self.b_system,self.W_in)]) + (self.eta/gamma) * a for a in self.a_system])
-
-        self.b_system_gamma = np.array([gamma * b for b in self.b_system])
-        self.b_dag_system_P = np.array([0.1 * gamma * b_dag for b_dag in self.b_dag_system])
+#        self.A = np.array([-1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag for b, b_dag in zip(self.b_system,self.b_dag_system)]),
+#                           *[-1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag - w_in * b_dag @ a for b, b_dag, w_in in zip(self.b_system,self.b_dag_system,self.W_in)]) - \
+#                             0.5 * (self.eta/gamma) * a_dag @ a for a, a_dag in zip(self.a_system,self.a_dag_system)]])
+#
+#        self.B = np.array([1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag for b, b_dag in zip(self.b_system,self.b_dag_system)]),
+#                           *[1j * self.H_unitary + sum([- 0.5 * gamma * b_dag @ b - 0.5 * self.P * b @ b_dag - w_in * a_dag @ b for b, b_dag, w_in in zip(self.b_system,self.b_dag_system,self.W_in)]) - \
+#                             0.5 * (self.eta/gamma) * a_dag @ a for a, a_dag in zip(self.a_system,self.a_dag_system)]])
+#
+#        self.C = np.array([[gamma * b + w_in * a for b, w_in in zip(self.b_system,self.W_in)] for a in self.a_system])
+#
+#        self.D = np.array([sum([w_in * b for b, w_in in zip(self.b_system,self.W_in)]) + (self.eta/gamma) * a for a in self.a_system])
+#
+#        self.b_system_gamma = np.array([gamma * b for b in self.b_system])
+#        self.b_dag_system_P = np.array([0.1 * gamma * b_dag for b_dag in self.b_dag_system])
 
         self.b_dag_b = np.array([b_dag @ b for b, b_dag in zip(self.b_system,self.b_dag_system)])
+        self.b_b_dag = np.array([b @ b_dag for b, b_dag in zip(self.b_system,self.b_dag_system)])
+        self.a_dag_a = np.array([a_dag @ a for a, a_dag in zip(self.a_system,self.a_dag_system)])
+        self.b_dag_a = np.array([[b_dag @ a for b_dag in self.b_dag_system] for a in self.a_system])
+        self.a_dag_b = np.array([[a_dag @ b for b in self.b_system] for a_dag in self.a_dag_system])
 
         self.entangled_forecast = Ridge(1.0)
         self.separable_forecast = Ridge(1.0)
@@ -99,7 +102,7 @@ class QReservoir:
             J_ij_ = np.random.uniform(-self.gamma, self.gamma, int((self.reservoir_size*(self.reservoir_size-1)/2),))
 
             for (first, second), interaction_str in zip(combinations(range(self.reservoir_size), 2), J_ij_):
-                H_unitary_ += interaction_str*(self.b_dag_system[first] @ self.b_system[second] + self.b_dag_system[second] @ self.b_system[first])
+                H_unitary_ += interaction_str*(dagger(self.b_system[first]) @ self.b_system[second] + dagger(self.b_system[second]) @ self.b_system[first])
 
         elif self.reservoir_connectivity == "ring":
             J_ij = np.random.uniform(-self.gamma, self.gamma, (self.reservoir_size,))
@@ -129,52 +132,88 @@ class QReservoir:
             #buffer = self.rho_full[i*self.dims[1]:(i+1)*self.dims[1], i*self.dims[1]:(i+1)*self.dims[1]]
             #print(np.round(buffer,3))
             rho_new_ += self.rho_full[i*self.dims[1]:(i+1)*self.dims[1], i*self.dims[1]:(i+1)*self.dims[1]]
-   
-        #buffer = truncate_mantissa(np.kron(input, rho_new_),12)
-        #tr_res = np.trace(rho_new_)
-        #tr_new = np.trace(buffer)
-        #print(f"tr_res: {tr_res}")
-        #print(f"tr_new: {tr_new}")
 
-        self.rho_full = truncate_mantissa(np.kron(input, rho_new_),12)
+        #buffer = np.kron(input, rho_new_)
+        self.rho_full = np.kron(input, rho_new_) #buffer
 
-    def update_reservoir(self):
+#    def update_reservoir(self):
+#
+#        def update_me(rho, t):
+#            
+#            if 0 < t < self.tau:
+#                #print("eka")
+#                return self.A[1] @ rho + rho @ self.B[1] + sum([self.C[0][i] @ rho @ self.b_dag_system[i] + self.b_dag_system_P[i] @ rho @ self.b_system[i] for i in range(self.reservoir_size)]) + \
+#                    self.D[0] @ rho @ self.a_dag_system[0]
+#            elif self.tau < t < 2*self.tau:
+#                #print("toka")
+#                return self.A[2] @ rho + rho @ self.B[2] + sum([self.C[1][i] @ rho @ self.b_dag_system[i] + self.b_dag_system_P[i] @ rho @ self.b_system[i] for i in range(self.reservoir_size)]) + \
+#                    self.D[1] @ rho @ self.a_dag_system[1]
+#            elif (t == 0) | (t == self.tau) | (t == 2*self.tau):
+#               #print(f"t: {t}, valiin")       
+#                return self.A[0] @ rho + rho @ self.B[0] + sum([self.b_system_gamma[i] @ rho @ self.b_dag_system[i] + self.b_dag_system_P[i] @ rho @ self.b_system[i] for i in range(self.reservoir_size)])
+#            else:
+#                return np.zeros((12,12))
+#                print("Out of bounds")
+#
+#        def rk4(t):
+#            k1_ = update_me(self.rho_full, t)
+#            k2_ = update_me(self.rho_full + 0.5 * self.step * k1_, t + 0.5 * self.step)
+#            k3_ = update_me(self.rho_full + 0.5 * self.step * k2_, t + 0.5 * self.step)
+#            k4_ = update_me(self.rho_full + self.step * k3_, t + self.step)
+#            self.rho_full += (self.step/6)*(k1_ + 2 * k2_ + 2 * k3_ + k4_)
+#
+#        for t in self.timesteps:
+#            rk4(t)
+
+    def init_b_dissipatros(self, rho):
+        return sum([self.b_system[i] @ rho @ self.b_dag_system[i] - 0.5 * self.b_dag_b[i] @ rho - 0.5 * rho @ self.b_dag_b[i] for i in range(self.reservoir_size)])
+
+    def init_b_dag_dissipatros(self, rho):
+        return sum([self.b_dag_system[i] @ rho @ self.b_system[i] - 0.5 * self.b_b_dag[i] @ rho - 0.5 * rho @ self.b_b_dag[i] for i in range(self.reservoir_size)])
+    
+    def init_cascaded1(self, rho):
+        return sum([self.W_in[i] * self.a_system[0] @ rho @ self.b_dag_system[i] - self.W_in[i] * self.b_dag_a[0][i] @ rho + self.W_in[i] * self.b_system[i] @ rho @ self.a_dag_system[0] - self.W_in[i] * rho @ self.a_dag_b[0][i] for i in range(self.reservoir_size)])
+    
+    def init_cascaded2(self, rho):
+        return sum([self.W_in[i] * self.a_system[1] @ rho @ self.b_dag_system[i] - self.W_in[i] * self.b_dag_a[1][i] @ rho + self.W_in[i] * self.b_system[i] @ rho @ self.a_dag_system[1] - self.W_in[i] * rho @ self.a_dag_b[1][i] for i in range(self.reservoir_size)])
+
+    def update_reservoir1(self):
 
         def update_me(rho, t):
             
+            unitary_evolution = -1j * (self.H_unitary @ rho + rho @ self.H_unitary)
+            nonunitary_evolution = self.gamma * self.init_b_dissipatros(rho) + self.P * self.init_b_dag_dissipatros(rho)
+
             if 0 < t < self.tau:
                 #print("eka")
-                return self.A[1] @ rho + rho @ self.B[1] + sum([self.C[0][i] @ rho @ self.b_dag_system[i] + self.b_dag_system_P[i] @ rho @ self.b_system[i] for i in range(self.reservoir_size)]) + \
-                    self.D[0] @ rho @ self.a_dag_system[0]
+                nonunitary_evolution += (self.eta/self.gamma) * (self.a_system[0] @ rho @ self.a_dag_system[0] - 0.5 * self.a_dag_a[0] @ rho - 0.5 * rho @ self.a_dag_a[0]) + self.init_cascaded1(rho)
             elif self.tau < t < 2*self.tau:
                 #print("toka")
-                return self.A[2] @ rho + rho @ self.B[2] + sum([self.C[1][i] @ rho @ self.b_dag_system[i] + self.b_dag_system_P[i] @ rho @ self.b_system[i] for i in range(self.reservoir_size)]) + \
-                    self.D[1] @ rho @ self.a_dag_system[1]
-            elif (t == 0) | (t == self.tau) | (t == 2*self.tau):
-                #print(f"t: {t}, valiin")       
-                return self.A[0] @ rho + rho @ self.B[0] + sum([self.b_system_gamma[i] @ rho @ self.b_dag_system[i] + self.b_dag_system_P[i] @ rho @ self.b_system[i] for i in range(self.reservoir_size)])
-            else:
-                return np.zeros((12,12))
-                print("Out of bounds")
+                nonunitary_evolution += (self.eta/self.gamma) * (self.a_system[1] @ rho @ self.a_dag_system[1] - 0.5 * self.a_dag_a[1] @ rho - 0.5 * rho @ self.a_dag_a[1]) + self.init_cascaded2(rho)
+
+            return unitary_evolution + nonunitary_evolution
 
         def rk4(t):
             k1_ = update_me(self.rho_full, t)
             k2_ = update_me(self.rho_full + 0.5 * self.step * k1_, t + 0.5 * self.step)
             k3_ = update_me(self.rho_full + 0.5 * self.step * k2_, t + 0.5 * self.step)
             k4_ = update_me(self.rho_full + self.step * k3_, t + self.step)
-            self.rho_full += copy.copy(truncate_mantissa((self.step/6)*(k1_ + 2 * k2_ + 2 * k3_ + k4_),12))
+            self.rho_full += (self.step/6)*(k1_ + 2 * k2_ + 2 * k3_ + k4_)
 
         for t in self.timesteps:
             rk4(t)
         
     def measure_reservoir(self):
-        return [np.trace(self.rho_full @ self.b_dag_b[i]).real for i in range(self.reservoir_size)]
+        return [np.trace(self.rho_full @ b_dag_b) for b_dag_b in self.b_dag_b]
         
     def update_and_measure_reservoir(self, inputs):
         measured_observables_ = []
+        self.stored_rho = [self.rho_full]
         for i,input in enumerate(inputs):
             self.inject_input(input)
-            self.update_reservoir()
+            self.stored_rho.append(self.rho_full)
+            self.update_reservoir1()
+            self.stored_rho.append(self.rho_full)
             measured_observables_.append(self.measure_reservoir())
             print(i)
 
@@ -195,19 +234,17 @@ class QReservoir:
         return count_ / len(Y_true)
 
     def train_reservoir(self, inputs):
-        self.train_measured_observables_ = data_standardize(self.update_and_measure_reservoir(inputs))
+        self.train_measured_observables_ = self.update_and_measure_reservoir(inputs)
         self.train_Y_true_ = self.get_entanglement_values(inputs)
-        self.entangled_forecast.fit(self.train_measured_observables_, self.train_Y_true_[:,0])
-        self.separable_forecast.fit(self.train_measured_observables_, self.train_Y_true_[:,1])
+        #self.entangled_forecast.fit(self.train_measured_observables_, self.train_Y_true_[:,0])
+        #self.separable_forecast.fit(self.train_measured_observables_, self.train_Y_true_[:,1])
 
     def test_reservoir(self, inputs):
-        self.test_measured_observables_ = data_standardize(self.update_and_measure_reservoir(inputs))
+        self.test_measured_observables_ = self.update_and_measure_reservoir(inputs)
         self.test_Y_true_ = self.get_entanglement_values(inputs)
 
         self.test_pre_Y_pred_ = np.array([self.entangled_forecast.predict(self.test_measured_observables_), self.separable_forecast.predict(self.test_measured_observables_)])
         self.test_Y_pred_ = self.assign_entanglement_from_probabilities(self.test_pre_Y_pred_.T)
-
-        #self.test_Y_pred_ = self.assign_entanglement_from_probabilities(np.array([self.entangled_forecast.predict(self.test_measured_observables_), self.separable_forecast.predict(self.test_measured_observables_)]).T)
 
         score_ = self.analyze_performance(self.test_Y_true_, self.test_Y_pred_)
 
