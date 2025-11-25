@@ -27,15 +27,15 @@ class RidgeRegression:
             for _ in range(self.iterations):
                 for x, y in zip(X,Y):
                     y_pred_ = self.predict(x)
-                    W_out_gradient_ = - x.T @ (y - y_pred_) + self.regularization_strength*self.W_out
-                    bias_term_gradient_ = - sum(y - y_pred_)
-                    self.W_out = self.W_out - self.learning_rate*W_out_gradient_
-                    self.bias_term = self.bias_term - self.learning_rate*bias_term_gradient_
+                    W_out_gradient_ = - np.dot(x.T, (y - y_pred_)) + self.regularization_strength*self.W_out
+                    bias_term_gradient_ = - np.sum(y - y_pred_)
+                    self.W_out -= self.learning_rate*W_out_gradient_
+                    self.bias_term -= self.learning_rate*bias_term_gradient_
         else:
             for _ in range(self.iterations):
                 Y_pred_ = self.predict(X)
                 W_out_gradient_ = - X.T @ (Y - Y_pred_) + self.regularization_strength*self.W_out
-                bias_term_gradient_ = - sum(Y - Y_pred_)
+                bias_term_gradient_ = - np.sum(Y - Y_pred_)
                 self.W_out = self.W_out - self.learning_rate*W_out_gradient_
                 self.bias_term = self.bias_term - self.learning_rate*bias_term_gradient_
 

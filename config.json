@@ -1,0 +1,9 @@
+{
+    "GAMMA": 1,
+    "SIZE": 4,
+    "TRUNC": 5,
+    "ROUND": 10,
+    "MODELS": 10,
+    "TRAIN": 200,
+    "TEST": 200
+}

@@ -1,6 +1,7 @@
 import numpy as np
 import scipy as sp
 import copy
+import os
 
 def dagger(operator):
     return np.conj(operator).T
@@ -126,8 +127,13 @@ def init_th(mean_n, truncate, other=False):
 def init_two_mode_th(mean_n, truncate):
     return tensor([init_th(mean_n, truncate, other=True), init_th(mean_n, truncate,other=True)])
 
+def init_vac(truncate):
+    vac_ = np.zeros((truncate, truncate), dtype=np.complex64)
+    vac_[0,0] = 1
+    return vac_
+
 #Function that creates a two-mode squeezed thermal state
-def init_two_mode_sq_th(alpha, mean_n, truncate, a1, a2, rounding=None):
+def init_sq_th(alpha, mean_n, truncate, a1, a2, rounding=None):
     
     #Initialize the two-mode thermal state
     sq_ = init_two_mode_sq(alpha, a1, a2)
@@ -138,8 +144,49 @@ def init_two_mode_sq_th(alpha, mean_n, truncate, a1, a2, rounding=None):
     
     return sq_ @ th_ @ dagger(sq_)
 
+def init_sq_add(alpha, truncate, a1, a2, rounding=None):
+
+    sq_ = init_two_mode_sq(alpha, a1, a2)
+    vac_ = init_vac(truncate**2)
+    sq_add_ = dagger(a1) @ dagger(a2) @ sq_ @ vac_ @ dagger(sq_) @ a2 @ a1
+
+    #Normalize
+    sq_add_ = sq_add_ / np.trace(sq_add_)
+
+    if rounding:  
+        return truncate_mantissa(sq_add_, rounding)
+    
+    return sq_add_
+
+def init_sq_sub(alpha, truncate, a1, a2, rounding=None):
+
+    sq_ = init_two_mode_sq(alpha, a1, a2)
+    vac_ = init_vac(truncate**2)
+    sq_sub_ = a1 @ a2 @ sq_ @ vac_ @ dagger(sq_) @ dagger(a2) @ dagger(a1)
+
+    #Normalize
+    sq_sub_ = sq_sub_ / np.trace(sq_sub_)
+
+    if rounding:  
+        return truncate_mantissa(sq_sub_, rounding)
+    
+    return sq_sub_
+
+def init_simple(c0, c1, truncate, rounding=None):
+
+    vac_site_ = np.zeros((truncate**2,), dtype=np.complex64)
+    vac_site_[0] = c0
+    exit_site_ = np.zeros((truncate**2,), dtype=np.complex64)
+    exit_site_[6] = c1
+    simple_ = np.outer(vac_site_ + exit_site_, np.conj(vac_site_ + exit_site_))
+
+    if rounding:
+        return truncate_mantissa(simple_, rounding)
+    
+    return simple_
+
 #Creates two-mode input states in bulk
-def gen_input_states(type, amount_of_states, truncate=None, rounding=None):
+def gen_input_states(type, amount_of_states, truncate, rounding=None):
 
     #Squeezed thermal states
     if type == "sq_th":
@@ -152,7 +199,7 @@ def gen_input_states(type, amount_of_states, truncate=None, rounding=None):
         alpha_sq_th_ = np.array([x*np.sin(y)*np.exp(1j*z) for x, y, z in zip(s_sq_th_,phi_sq_th_,theta_sq_th_)])
         mean_n_sq_th_ = np.array([x*x*np.cos(y)*np.cos(y) for x, y in zip(s_sq_th_,phi_sq_th_)])
 
-        return np.array([init_two_mode_sq_th(x,y,truncate,a1_,a2_,rounding) for x,y in zip(alpha_sq_th_,mean_n_sq_th_)])
+        return np.array([init_sq_th(x,y,truncate,a1_,a2_,rounding) for x,y in zip(alpha_sq_th_,mean_n_sq_th_)])
     
     #Photon added vacuum states
     elif type == "pho_add":
@@ -163,7 +210,7 @@ def gen_input_states(type, amount_of_states, truncate=None, rounding=None):
         theta_pho_add_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
         alpha_pho_add_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_pho_add_,theta_pho_add_)])  
 
-        #return np.array([init_pho_add(x, truncate,a1_,a2_) for x in alpha_pho_add_])
+        return np.array([init_sq_add(x,truncate,a1_,a2_,rounding) for x in alpha_pho_add_])
 
     #Photon subtracted vacuum states
     elif type == "pho_sub":
@@ -174,17 +221,32 @@ def gen_input_states(type, amount_of_states, truncate=None, rounding=None):
         theta_pho_sub_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
         alpha_pho_sub_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_pho_sub_,theta_pho_sub_)])
 
-        #return np.array([init_pho_sub(x, truncate,a1_,a2_) for x in alpha_pho_sub_])
+        return np.array([init_sq_sub(x,truncate,a1_,a2_,rounding) for x in alpha_pho_sub_])
 
     #Simple states 
     elif type == "simple":
         theta_simple_ = np.array([np.arcsin(np.sqrt(x)) for x in np.random.uniform(0,1,(amount_of_states,))])
         phi_simple_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-
         c0_simple_ = np.array([np.sin(x) for x in theta_simple_])
         c1_simple_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_simple_, phi_simple_)])
 
-        #return np.array([init_simple(x, y, truncate) for x,y in zip(c0_simple_, c1_simple_)])
+        return np.array([init_simple(x,y,truncate,rounding) for x,y in zip(c0_simple_, c1_simple_)])
     
     else:
         print(f"{type} not possible")
+
+def gen_system_filepath(folder, filename):
+    filename = filename + ".npz"
+    return os.path.join(os.getcwd(),"Qreservoir_data", folder, "filename")
+
+def gen_result_filepath(filename):
+    filename = filename + ".csv"
+    return os.path.join(os.getcwd(),"Qreservoir_results", "filename")
+
+def write_to_row(value, filepath):
+    with open(filepath, 'a') as file:
+        file.write(value)
+
+def finish_row(filepath):
+    with open(filepath, 'a') as file:
+        file.write('\n')
