@@ -2,6 +2,7 @@
     "GAMMA": 1,
     "SIZE": 4,
     "TRUNC": 5,
+    "CONNECT": "sausage",
     "ROUND": 10,
     "MODELS": 10,
     "TRAIN": 200,

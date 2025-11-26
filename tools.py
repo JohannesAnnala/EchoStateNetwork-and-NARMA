@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sp
 import copy
 import os
+from json import load
 
 def dagger(operator):
     return np.conj(operator).T
@@ -235,18 +236,40 @@ def gen_input_states(type, amount_of_states, truncate, rounding=None):
     else:
         print(f"{type} not possible")
 
-def gen_system_filepath(folder, filename):
-    filename = filename + ".npz"
-    return os.path.join(os.getcwd(),"Qreservoir_data", folder, "filename")
+def unpack_config(filepath):
+    with open(filepath) as file:
+        parameters = load(file)
+
+    gamma_ = parameters["GAMMA"]                                 
+    reservoir_size_ = parameters["SIZE"]    
+    fock_truncation_ = parameters["TRUNC"]
+    res_connect_ = parameters["CONNECT"]
+    sim_rounding_ = parameters["ROUND"]
+    n_models_ = parameters["MODELS"]
+    n_train_inputs_ = parameters["TRAIN"]
+    n_test_inputs_ = parameters["TEST"]
+
+    return gamma_, reservoir_size_, fock_truncation_, res_connect_, sim_rounding_, n_models_, n_train_inputs_, n_test_inputs_
+
+def gen_config_filepath(confignumber):
+    filename = "config" + str(confignumber) + ".json"
+    return os.path.join(os.getcwd(),"Qreservoir_configurations", filename)
+
+def folder_name(gamma, res_size, fock_trunc, res_connect):
+    return str(gamma) + "_" + str(res_size) + "_" + str(fock_trunc) + "_" + str(res_connect)
+
+def gen_system_filepath(folder, systemnumber):
+    filename = "system" + str(systemnumber) + ".npz"
+    return os.path.join(os.getcwd(),"Qreservoir_systems", folder, filename)
 
 def gen_result_filepath(filename):
     filename = filename + ".csv"
-    return os.path.join(os.getcwd(),"Qreservoir_results", "filename")
+    return os.path.join(os.getcwd(),"Qreservoir_results", filename)
 
 def write_to_row(value, filepath):
     with open(filepath, 'a') as file:
-        file.write(value)
+        file.write(value + ";")
 
 def finish_row(filepath):
     with open(filepath, 'a') as file:
-        file.write('\n')
+        file.write('0\n')

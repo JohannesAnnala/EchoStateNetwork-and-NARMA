@@ -10,7 +10,7 @@ import warnings
 warnings.simplefilter("always", RuntimeWarning)
 
 class QReservoir:
-    def __init__(self, gamma=1, reservoir_size=4, energy_truncate_level=5, reservoir_connectivity="alltoall", sim_precision=12, data_path=None):
+    def __init__(self, gamma=1, reservoir_size=4, energy_truncate_level=5, reservoir_connectivity="alltoall", sim_precision=12):
         self.reservoir_size = reservoir_size
         self.energy_truncate_level = energy_truncate_level
         self.dims = (energy_truncate_level**2, 2**reservoir_size)
@@ -56,8 +56,6 @@ class QReservoir:
         self.Ridge_param = 0.1
         self.entangled_forecast = Ridge(self.Ridge_param)
         self.separable_forecast = Ridge(self.Ridge_param)
-
-        self.data_path = data_path
 
     def update_gamma(self, gamma):
         self.gamma = gamma
@@ -194,8 +192,6 @@ class QReservoir:
         self.rho_full_after_train = self.rho_full
         self.entangled_forecast.fit(self.train_measured_observables, self.train_Y_true[:,0])
         self.separable_forecast.fit(self.train_measured_observables, self.train_Y_true[:,1])
-        if self.data_path:
-            self.system_data_save(self.data_path)
 
     def test_reservoir(self, inputs):
         self.test_measured_observables = data_standardize(self.update_and_measure_reservoir(inputs))
@@ -203,16 +199,14 @@ class QReservoir:
 
         self.test_prob_Y_pred = np.array([self.entangled_forecast.predict(self.test_measured_observables), self.separable_forecast.predict(self.test_measured_observables)])
         self.test_Y_pred = self.assign_entanglement_from_probabilities(self.test_prob_Y_pred.T)
-
         #self.test_Y_pred_ = self.assign_entanglement_from_probabilities(np.array([self.entangled_forecast.predict(self.test_measured_observables_), self.separable_forecast.predict(self.test_measured_observables_)]).T)
+
         return self.analyze_performance(self.test_Y_true, self.test_Y_pred)
     
     def reset_after_test(self):
         self.rho_full = self.rho_full_after_train
 
-    
-
-    def system_data_save(self, filepath):
+    def system_save(self, filepath):
         reservoir_params = {
         "gamma": self.gamma,
         "res_size": self.reservoir_size,
@@ -228,7 +222,7 @@ class QReservoir:
 
         np.savez(filepath, reservoir_params=reservoir_params, w_in=self.W_in, h_unit=self.H_unitary, rho_full=self.rho_full, train_obs=self.train_measured_observables, y_true=self.train_Y_true)
 
-    def system_data_load(self, filepath):
+    def system_load(self, filepath):
         data = np.load(filepath, allow_pickle=True)
 
         reservoir_params = data["reservoir_params"].item()
@@ -281,4 +275,3 @@ class QReservoir:
         new_reservior_.system_data_load(filepath)
 
         return new_reservior_
-    
