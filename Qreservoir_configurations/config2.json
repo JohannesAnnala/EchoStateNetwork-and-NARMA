@@ -3,7 +3,7 @@
     "SIZE": 4,
     "TRUNC": 5,
     "CONNECT": "ring",
-    "ROUND": 10,
+    "ROUND": 12,
     "MODELS": 10,
     "TRAIN": 200,
     "TEST": 200
