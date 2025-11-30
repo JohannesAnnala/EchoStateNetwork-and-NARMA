@@ -107,7 +107,7 @@ class QReservoir:
             for i in range(self.reservoir_size-1):
                 H_unitary_ += J_ij_[i]*(self.b_dag_system[i] @ self.b_system[i+1] + self.b_dag_system[i+1] @ self.b_system[i])
 
-            H_unitary_ += J_ij_[self.reservoir_size]*(self.b_dag_system[self.reservoir_size] @ self.b_system[0] + self.b_dag_system[0] @ self.b_system[self.reservoir_size])
+            H_unitary_ += J_ij_[self.reservoir_size-1]*(self.b_dag_system[self.reservoir_size-1] @ self.b_system[0] + self.b_dag_system[0] @ self.b_system[self.reservoir_size-1])
 
         elif self.reservoir_connectivity == "sausage":
             J_ij_ = np.random.uniform(-self.gamma, self.gamma, (self.reservoir_size-1,))
