@@ -276,10 +276,12 @@ class QReservoir:
         self.entangled_forecast.fit(self.train_measured_observables, self.train_Y_true[:,0])
         self.separable_forecast.fit(self.train_measured_observables, self.train_Y_true[:,1])
 
+        self.rho_full_after_train = self.rho_full
+
     @classmethod
     def init_from_file(self, filepath):
         
         new_reservior_ = QReservoir()
-        new_reservior_.system_data_load(filepath)
+        new_reservior_.system_load(filepath)
 
         return new_reservior_
