@@ -15,7 +15,7 @@ class Reservoir:
     #Resets the reservoir state to a random initial state
     def reset_reservoir_state(self):
         if self.spatial_multiplexing:
-            self.reservoir_state = np.random.uniform(-1,1,(self.spatial_multiplexing,self.reservoir_size))
+            self.reservoir_state = np.random.uniform(-1,1,(self.spatial_multiplexing*self.reservoir_size,))
         else:
             self.reservoir_state = np.random.uniform(-1,1,(self.reservoir_size,))
 
@@ -53,7 +53,7 @@ class Reservoir:
         self.task_counter += 1
         taskname_ = f"task{self.task_counter}"
         self.results[taskname_] = performance_task_
-        print(f"Added performance task '{performance_task_.name}' as '{taskname_}'")
+        #print(f"Added performance task '{performance_task_.name}' as '{taskname_}'")
 
     def delete_performance_task(self, taskname_):
         del self.results[taskname_]
@@ -112,6 +112,9 @@ class Reservoir:
             #Training
             train_observables_ = self.update_and_measure_reservoir("train")
             train_NARMA_outputs_ = self.results[task_].perform_NARMA(self.train_inputs)
+            print(train_observables_)
+            print(train_NARMA_outputs_)
+
             self.trained_weights = np.linalg.inv(train_observables_.T @ train_observables_) @ train_observables_.T @ train_NARMA_outputs_
 
             #Testing

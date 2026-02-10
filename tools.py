@@ -251,6 +251,10 @@ def unpack_config(filepath):
 
     return gamma_, reservoir_size_, fock_truncation_, res_connect_, sim_rounding_, n_models_, n_train_inputs_, n_test_inputs_
 
+def gen_narma_nmse_filepath(narma_order):
+    filename = "narma" + str(narma_order) + "_nmse.csv"
+    return os.path.join(os.getcwd(),"reservoir_narma_nmse", filename)
+
 def gen_config_filepath(confignumber):
     filename = "config" + str(confignumber) + ".json"
     return os.path.join(os.getcwd(),"Qreservoir_configurations", filename)
