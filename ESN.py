@@ -19,7 +19,7 @@ class ESN:
     def reset_reservoir_state(self):
         self.reservoir_state = np.random.uniform(-1,1,(self.reservoir_size*self.spatial_multiplexing,))
 
-    def __init__(self, reservoir_size=4, feedback_gain=0.9, input_gain=0.1, spatial_multiplexing=1):
+    def __init__(self, reservoir_size=4, feedback_gain=0.9, input_gain=0.05, spatial_multiplexing=1):
         self.reservoir_size = reservoir_size
         self.feedback_gain = feedback_gain
         self.input_gain = input_gain
