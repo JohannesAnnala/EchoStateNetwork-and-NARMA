@@ -61,13 +61,16 @@ def real_diag(operator):
 def negativity(operator):
     return (trace_norm(operator)-1)/2
 
-def entanglement(operator):
+def logarithmic_negativity(operator):
     return np.log2(trace_norm(operator))
 
 def assess_dm_entanglement(rho, part, dims_first, dims_second, rounding=None):
     if rounding:
-        return np.round(entanglement(partial_transpose(rho, part, dims_first, dims_second)),rounding)
-    return entanglement(partial_transpose(rho, part, dims_first, dims_second))
+        return truncate_mantissa(logarithmic_negativity(partial_transpose(rho, part, dims_first, dims_second)),rounding)
+    return logarithmic_negativity(partial_transpose(rho, part, dims_first, dims_second))
+
+def get_entanglement_values(dms, part, dims_first, dims_second, rounding=None):
+    return np.array([[1,0] if assess_dm_entanglement(dm, "first", dims_first, dims_second, rounding) > 0 else [0,1] for dm in dms])
 
 def expectation_value(rho, operator):
     return np.trace(rho @ operator)
@@ -111,6 +114,11 @@ def init_multipartite_dc_operators(doperators, sizes):
 
     return doperators_, coperators_
 
+def init_sq(alpha, truncate):
+    a_ = init_destroy(truncate)
+    A_ = 1/2 * alpha * dagger(a_) @ dagger(a_) - np.conjugate(alpha) * a_ @ a_
+    return sp.linalg.expm(A_)
+
 def init_two_mode_sq(alpha, a1, a2):
     A_ = alpha * dagger(a1) @ dagger(a2) - np.conjugate(alpha) * a1 @ a2
     return sp.linalg.expm(A_)
@@ -134,7 +142,7 @@ def init_vac(truncate):
     return vac_
 
 #Function that creates a two-mode squeezed thermal state
-def init_sq_th(alpha, mean_n, truncate, a1, a2, rounding=None):
+def init_ST(alpha, mean_n, truncate, a1, a2, rounding=None):
     
     #Initialize the two-mode thermal state
     sq_ = init_two_mode_sq(alpha, a1, a2)
@@ -145,7 +153,7 @@ def init_sq_th(alpha, mean_n, truncate, a1, a2, rounding=None):
     
     return sq_ @ th_ @ dagger(sq_)
 
-def init_sq_add(alpha, truncate, a1, a2, rounding=None):
+def init_PASV(alpha, truncate, a1, a2, rounding=None):
 
     sq_ = init_two_mode_sq(alpha, a1, a2)
     vac_ = init_vac(truncate**2)
@@ -159,7 +167,24 @@ def init_sq_add(alpha, truncate, a1, a2, rounding=None):
     
     return sq_add_
 
-def init_sq_sub(alpha, truncate, a1, a2, rounding=None):
+def init_PASV_sep(alpha1, alpha2, truncate, a, rounding=None):
+
+    sq1_ = init_sq(alpha1, truncate)
+    sq2_ = init_sq(alpha2, truncate)
+    vac_ = init_vac(truncate)
+    sq_add1_ = dagger(a) @ sq1_ @ vac_ @ dagger(sq1_) @ a   
+    sq_add2_ = dagger(a) @ sq2_ @ vac_ @ dagger(sq2_) @ a
+
+    #Normalize
+    sq_add1_ = sq_add1_ / np.trace(sq_add1_)    
+    sq_add2_ = sq_add2_ / np.trace(sq_add2_)
+
+    if rounding:
+        return truncate_mantissa(tensor([sq_add1_, sq_add2_]), rounding)
+    
+    return tensor([sq_add1_, sq_add2_])
+
+def init_PSSV(alpha, truncate, a1, a2, rounding=None):
 
     sq_ = init_two_mode_sq(alpha, a1, a2)
     vac_ = init_vac(truncate**2)
@@ -173,12 +198,30 @@ def init_sq_sub(alpha, truncate, a1, a2, rounding=None):
     
     return sq_sub_
 
-def init_simple(c0, c1, truncate, rounding=None):
+def init_PSSV_sep(alpha1, alpha2, truncate, a, rounding=None):
+
+    a = init_destroy(truncate)
+    sq1_ = init_sq(alpha1, truncate)
+    sq2_ = init_sq(alpha2, truncate)
+    vac_ = init_vac(truncate)
+    sq_sub1_ = a @ sq1_ @ vac_ @ dagger(sq1_) @ dagger(a)   
+    sq_sub2_ = a @ sq2_ @ vac_ @ dagger(sq2_) @ dagger(a)
+
+    #Normalize
+    sq_sub1_ = sq_sub1_ / np.trace(sq_sub1_)    
+    sq_sub2_ = sq_sub2_ / np.trace(sq_sub2_)
+
+    if rounding:
+        return truncate_mantissa(tensor([sq_sub1_, sq_sub2_]), rounding)
+    
+    return tensor([sq_sub1_, sq_sub2_])
+
+def init_QUBIT(c0, c1, truncate, rounding=None):
 
     vac_site_ = np.zeros((truncate**2,), dtype=np.complex64)
     vac_site_[0] = c0
     exit_site_ = np.zeros((truncate**2,), dtype=np.complex64)
-    exit_site_[6] = c1
+    exit_site_[truncate+1] = c1
     simple_ = np.outer(vac_site_ + exit_site_, np.conj(vac_site_ + exit_site_))
 
     if rounding:
@@ -187,54 +230,161 @@ def init_simple(c0, c1, truncate, rounding=None):
     return simple_
 
 #Creates two-mode input states in bulk
-def gen_input_states(type, amount_of_states, truncate, rounding=None):
+def gen_input_states(type, amount_of_states, truncate, entanglement=False, rounding=None):
 
     #Squeezed thermal states
-    if type == "sq_th":
+    if type == "ST":
         a1_ = tensor([init_destroy(truncate), init_identity(truncate)])
         a2_ = tensor([init_identity(truncate), init_destroy(truncate)])
 
-        theta_sq_th_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-        s_sq_th_ = np.random.uniform(0.8,0.95,(amount_of_states,))
-        phi_sq_th_ = np.random.uniform(0.5-np.pi/10, 0.5+np.pi/10, (amount_of_states,))
-        alpha_sq_th_ = np.array([x*np.sin(y)*np.exp(1j*z) for x, y, z in zip(s_sq_th_,phi_sq_th_,theta_sq_th_)])
-        mean_n_sq_th_ = np.array([x*x*np.cos(y)*np.cos(y) for x, y in zip(s_sq_th_,phi_sq_th_)])
+        theta_ST_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        s_ST_ = np.random.uniform(0.8,0.95,(amount_of_states,))
+        phi_ST_ = np.random.uniform(0.5-np.pi/10, 0.5+np.pi/10, (amount_of_states,))
+        alpha_ST_ = np.array([x*np.sin(y)*np.exp(1j*z) for x, y, z in zip(s_ST_,phi_ST_,theta_ST_)])
+        mean_n_ST_ = np.array([x*x*np.cos(y)*np.cos(y) for x, y in zip(s_ST_,phi_ST_)])
 
-        return np.array([init_sq_th(x,y,truncate,a1_,a2_,rounding) for x,y in zip(alpha_sq_th_,mean_n_sq_th_)])
+        ST_ = np.array([init_ST(x,y,truncate,a1_,a2_,rounding) for x,y in zip(alpha_ST_,mean_n_ST_)])
+
+        if entanglement:
+            return ST_, get_entanglement_values(ST_, "first", truncate, truncate, 2)
+        return ST_
     
-    #Photon added vacuum states
-    elif type == "pho_add":
+    #Photon added squeezed vacuum states
+    elif type == "PASV":
         a1_ = tensor([init_destroy(truncate), init_identity(truncate)])
         a2_ = tensor([init_identity(truncate), init_destroy(truncate)])
         
-        abs_alpha_pho_add_ = np.random.uniform(0.1, 0.25, (amount_of_states,))
-        theta_pho_add_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-        alpha_pho_add_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_pho_add_,theta_pho_add_)])  
+        abs_alpha_PASV_ = np.random.uniform(0.1, 0.25, (amount_of_states,))
+        theta_PASV_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PASV_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV_,theta_PASV_)])
 
-        return np.array([init_sq_add(x,truncate,a1_,a2_,rounding) for x in alpha_pho_add_])
+        PASV_ = np.array([init_PASV(x,truncate,a1_,a2_,rounding) for x in alpha_PASV_])
 
-    #Photon subtracted vacuum states
-    elif type == "pho_sub":
+        if entanglement:
+            return PASV_, np.array([[1,0] for _ in range(amount_of_states)])
+        return PASV_
+
+    #Separable photon added squeezed vacuum states
+    elif type == "PASV_sep":
+        a_ = init_destroy(truncate)
+        
+        abs_alpha_PASV1_ = np.random.uniform(0.1, 0.25, (amount_of_states,))
+        theta_PASV1_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PASV1_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV1_,theta_PASV1_)])  
+        abs_alpha_PASV2_ = np.random.uniform(0.1, 0.25, (amount_of_states,))
+        theta_PASV2_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PASV2_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV2_,theta_PASV2_)])  
+        
+        PASV_sep_ = np.array([init_PASV_sep(x, y, truncate, a_, rounding) for x,y in zip(alpha_PASV1_, alpha_PASV2_)])    
+
+        if entanglement:
+            return PASV_sep_, np.array([[0,1] for _ in range(amount_of_states)])
+        return PASV_sep_  
+
+    elif type == "PASV_split":
+        if amount_of_states % 2 != 0:
+            print("For an equal split enter an even amount of states")
+            return 0
+        
+        new_perm_ = np.random.permutation(amount_of_states)
+        amount_of_states = amount_of_states / 2
+
+        a1_ = tensor([init_destroy(truncate), init_identity(truncate)])
+        a2_ = tensor([init_identity(truncate), init_destroy(truncate)]) 
+        abs_alpha_PASV_ = np.random.uniform(0.1, 0.25, (amount_of_states,))
+        theta_PASV_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PASV_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV_,theta_PASV_)])
+
+        a_ = init_destroy(truncate) 
+        abs_alpha_PASV1_ = np.random.uniform(0.1, 0.25, (amount_of_states,))
+        theta_PASV1_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PASV1_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV1_,theta_PASV1_)])  
+        abs_alpha_PASV2_ = np.random.uniform(0.1, 0.25, (amount_of_states,))
+        theta_PASV2_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PASV2_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV2_,theta_PASV2_)]) 
+
+        PASV_split_ = np.array(*[init_PASV(x,truncate,a1_,a2_,rounding) for x in alpha_PASV_], *[init_PASV_sep(x,y,truncate,a_,rounding) for x,y in zip(alpha_PASV1_,alpha_PASV2_)])  
+
+        if entanglement:
+            entanglement_ = np.array([*[[1,0] for _ in range(amount_of_states)], *[[0,1] for _ in range(amount_of_states)]])
+            return PASV_split_[new_perm_], entanglement_[new_perm_]
+        return PASV_split_[new_perm_]
+
+    #Photon subtracted squeezed vacuum states
+    elif type == "PSSV":
         a1_ = tensor([init_destroy(truncate), init_identity(truncate)])
         a2_ = tensor([init_identity(truncate), init_destroy(truncate)])
         
-        abs_alpha_pho_sub_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
-        theta_pho_sub_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-        alpha_pho_sub_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_pho_sub_,theta_pho_sub_)])
+        abs_alpha_PSSV_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
+        theta_PSSV_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PSSV_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PSSV_,theta_PSSV_)])
 
-        return np.array([init_sq_sub(x,truncate,a1_,a2_,rounding) for x in alpha_pho_sub_])
+        PSSV_ = np.array([init_PSSV(x,truncate,a1_,a2_,rounding) for x in alpha_PSSV_])
 
-    #Simple states 
-    elif type == "simple":
-        theta_simple_ = np.array([np.arcsin(np.sqrt(x)) for x in np.random.uniform(0,1,(amount_of_states,))])
-        phi_simple_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-        c0_simple_ = np.array([np.sin(x) for x in theta_simple_])
-        c1_simple_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_simple_, phi_simple_)])
+        if entanglement:
+            return PSSV_, np.array([[1,0] for _ in range(amount_of_states)])
+        return PSSV_
 
-        return np.array([init_simple(x,y,truncate,rounding) for x,y in zip(c0_simple_, c1_simple_)])
+    #Separable photon added squeezed vacuum states
+    elif type == "PSSV_sep":
+        a_ = init_destroy(truncate)
+        
+        abs_alpha_PSSV1_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
+        theta_PSSV1_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PSSV1_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PSSV1_,theta_PSSV1_)])  
+        abs_alpha_PSSV2_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
+        theta_PSSV2_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PSSV2_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PSSV2_,theta_PSSV2_)])  
+        
+        PSSV_sep_ = np.array([init_PSSV_sep(x, y, truncate, a_, rounding) for x,y in zip(alpha_PSSV1_, alpha_PSSV2_)])    
+
+        if entanglement:
+            return PSSV_sep_, np.array([[0,1] for _ in range(amount_of_states)])
+        return PSSV_sep_  
+
+    elif type == "PSSV_split":
+        if amount_of_states % 2 != 0:
+            print("For an equal split enter an even amount of states")
+            return 0
+        
+        new_perm_ = np.random.permutation(amount_of_states)
+        amount_of_states = amount_of_states / 2
+
+        a1_ = tensor([init_destroy(truncate), init_identity(truncate)])
+        a2_ = tensor([init_identity(truncate), init_destroy(truncate)]) 
+        abs_alpha_PSSV_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
+        theta_PSSV_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PSSV_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PSSV_,theta_PSSV_)])
+
+        a_ = init_destroy(truncate) 
+        abs_alpha_PSSV1_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
+        theta_PSSV1_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PSSV1_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV1_,theta_PASV1_)])  
+        abs_alpha_PSSV2_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
+        theta_PSSV2_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        alpha_PSSV2_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV2_,theta_PASV2_)]) 
+
+        PSSV_split_ = np.array(*[init_PSSV(x,truncate,a1_,a2_,rounding) for x in alpha_PSSV_], *[init_PSSV_sep(x,y,truncate,a_,rounding) for x,y in zip(alpha_PSSV1_,alpha_PSSV2_)])  
+
+        if entanglement:
+            entanglement_ = np.array([*[[1,0] for _ in range(amount_of_states)], *[[0,1] for _ in range(amount_of_states)]])
+            return PSSV_split_[new_perm_], entanglement_[new_perm_]
+        return PSSV_split_[new_perm_]
+
+    #Qubit states 
+    elif type == "QUBIT":
+        theta_QUBIT_ = np.array([np.arcsin(np.sqrt(x)) for x in np.random.uniform(0,1,(amount_of_states,))])
+        phi_QUBIT_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        c0_QUBIT_ = np.array([np.sin(x) for x in theta_QUBIT_])
+        c1_QUBIT_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_QUBIT_, phi_QUBIT_)])
+
+        QUBIT_ = np.array([init_QUBIT(x,y,truncate,rounding) for x,y in zip(c0_QUBIT_, c1_QUBIT_)])
+
+        return QUBIT_
     
     else:
         print(f"{type} not possible")
+        return 0
 
 def unpack_config(filepath):
     with open(filepath) as file:
