@@ -179,9 +179,6 @@ class QReservoir:
                 print(i)
 
         return np.array(measured_observables_)
-    
-    def get_entanglement_values(self, inputs):
-        return np.array([[1,0] if assess_dm_entanglement(input, "first", self.energy_truncate_level, self.energy_truncate_level, 2) > 0 else [0,1] for input in inputs])
 
     def assign_entanglement_from_probabilities(self, Y_pred):
         return np.array([[1,0] if x[0] >= x[1] else [0,1] for x in Y_pred])
@@ -194,16 +191,16 @@ class QReservoir:
 
         return count_ / len(Y_true)
 
-    def train_reservoir(self, inputs):
+    def train_reservoir(self, inputs, entanglement_values):
         self.train_measured_observables = data_standardize(self.update_and_measure_reservoir(inputs))
-        self.train_Y_true = self.get_entanglement_values(inputs)
+        self.train_Y_true = entanglement_values
         self.rho_full_after_train = self.rho_full
         self.entangled_forecast.fit(self.train_measured_observables, self.train_Y_true[:,0])
         self.separable_forecast.fit(self.train_measured_observables, self.train_Y_true[:,1])
 
-    def test_reservoir(self, inputs):
+    def test_reservoir(self, inputs, entanglement_values):
         self.test_measured_observables = data_standardize(self.update_and_measure_reservoir(inputs))
-        self.test_Y_true = self.get_entanglement_values(inputs)
+        self.test_Y_true = entanglement_values
 
         self.test_prob_Y_pred = np.array([self.entangled_forecast.predict(self.test_measured_observables), self.separable_forecast.predict(self.test_measured_observables)])
         self.test_Y_pred = self.assign_entanglement_from_probabilities(self.test_prob_Y_pred.T)

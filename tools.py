@@ -287,7 +287,7 @@ def gen_input_states(type, amount_of_states, truncate, entanglement=False, round
             return 0
         
         new_perm_ = np.random.permutation(amount_of_states)
-        amount_of_states = amount_of_states / 2
+        amount_of_states = int(amount_of_states / 2)
 
         a1_ = tensor([init_destroy(truncate), init_identity(truncate)])
         a2_ = tensor([init_identity(truncate), init_destroy(truncate)]) 
@@ -303,7 +303,7 @@ def gen_input_states(type, amount_of_states, truncate, entanglement=False, round
         theta_PASV2_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
         alpha_PASV2_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV2_,theta_PASV2_)]) 
 
-        PASV_split_ = np.array(*[init_PASV(x,truncate,a1_,a2_,rounding) for x in alpha_PASV_], *[init_PASV_sep(x,y,truncate,a_,rounding) for x,y in zip(alpha_PASV1_,alpha_PASV2_)])  
+        PASV_split_ = np.array([*[init_PASV(x,truncate,a1_,a2_,rounding) for x in alpha_PASV_], *[init_PASV_sep(x,y,truncate,a_,rounding) for x,y in zip(alpha_PASV1_,alpha_PASV2_)]])  
 
         if entanglement:
             entanglement_ = np.array([*[[1,0] for _ in range(amount_of_states)], *[[0,1] for _ in range(amount_of_states)]])
@@ -348,7 +348,7 @@ def gen_input_states(type, amount_of_states, truncate, entanglement=False, round
             return 0
         
         new_perm_ = np.random.permutation(amount_of_states)
-        amount_of_states = amount_of_states / 2
+        amount_of_states = int(amount_of_states / 2)
 
         a1_ = tensor([init_destroy(truncate), init_identity(truncate)])
         a2_ = tensor([init_identity(truncate), init_destroy(truncate)]) 
@@ -359,12 +359,12 @@ def gen_input_states(type, amount_of_states, truncate, entanglement=False, round
         a_ = init_destroy(truncate) 
         abs_alpha_PSSV1_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
         theta_PSSV1_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-        alpha_PSSV1_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV1_,theta_PASV1_)])  
+        alpha_PSSV1_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PSSV1_,theta_PSSV1_)])  
         abs_alpha_PSSV2_ = np.random.uniform(0.8, 0.95, (amount_of_states,))
         theta_PSSV2_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-        alpha_PSSV2_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PASV2_,theta_PASV2_)]) 
+        alpha_PSSV2_ = np.array([x*np.exp(1j*y) for x, y in zip(abs_alpha_PSSV2_,theta_PSSV2_)]) 
 
-        PSSV_split_ = np.array(*[init_PSSV(x,truncate,a1_,a2_,rounding) for x in alpha_PSSV_], *[init_PSSV_sep(x,y,truncate,a_,rounding) for x,y in zip(alpha_PSSV1_,alpha_PSSV2_)])  
+        PSSV_split_ = np.array([*[init_PSSV(x,truncate,a1_,a2_,rounding) for x in alpha_PSSV_], *[init_PSSV_sep(x,y,truncate,a_,rounding) for x,y in zip(alpha_PSSV1_,alpha_PSSV2_)]])  
 
         if entanglement:
             entanglement_ = np.array([*[[1,0] for _ in range(amount_of_states)], *[[0,1] for _ in range(amount_of_states)]])
