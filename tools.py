@@ -222,12 +222,24 @@ def init_QUBIT(c0, c1, truncate, rounding=None):
     vac_site_[0] = c0
     exit_site_ = np.zeros((truncate**2,), dtype=np.complex64)
     exit_site_[truncate+1] = c1
-    simple_ = np.outer(vac_site_ + exit_site_, np.conj(vac_site_ + exit_site_))
+    QUBIT_ = np.outer(vac_site_ + exit_site_, np.conj(vac_site_ + exit_site_))
 
     if rounding:
-        return truncate_mantissa(simple_, rounding)
+        return truncate_mantissa(QUBIT_, rounding)
     
-    return simple_
+    return QUBIT_
+
+def init_QUBIT_sep(truncate, rounding=None):
+    QUBIT_ = np.zeros((truncate**2,truncate**2), dtype=np.complex64)
+    if np.random.choice(2,1):
+        QUBIT_[0,0] = 1
+    else:
+        QUBIT_[truncate+1,truncate+1] = 1
+
+    if rounding:
+        return truncate_mantissa(QUBIT_, rounding)
+    
+    return QUBIT_
 
 #Creates two-mode input states in bulk
 def gen_input_states(type, amount_of_states, truncate, entanglement=False, rounding=None):
@@ -373,14 +385,44 @@ def gen_input_states(type, amount_of_states, truncate, entanglement=False, round
 
     #Qubit states 
     elif type == "QUBIT":
-        theta_QUBIT_ = np.array([np.arcsin(np.sqrt(x)) for x in np.random.uniform(0,1,(amount_of_states,))])
+        theta_QUBIT_ = np.array([0.5*np.arcsin(x) for x in np.random.uniform(0,1,(amount_of_states,))])
         phi_QUBIT_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
         c0_QUBIT_ = np.array([np.sin(x) for x in theta_QUBIT_])
         c1_QUBIT_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_QUBIT_, phi_QUBIT_)])
 
         QUBIT_ = np.array([init_QUBIT(x,y,truncate,rounding) for x,y in zip(c0_QUBIT_, c1_QUBIT_)])
 
-        return QUBIT_
+        if entanglement:
+            return QUBIT_, np.array([[1,0] for _ in range(amount_of_states)])
+        return QUBIT_  
+    
+    elif type == "QUBIT_sep":
+
+        QUBIT_sep_ = np.array([init_QUBIT_sep(truncate,rounding) for _ in range(amount_of_states)])
+
+        if entanglement:
+            return QUBIT_sep_, np.array([[0,1] for _ in range(amount_of_states)])
+        return QUBIT_sep_  
+    
+    elif type == "QUBIT_split":
+        if amount_of_states % 2 != 0:
+            print("For an equal split enter an even amount of states")
+            return 0
+        
+        new_perm_ = np.random.permutation(amount_of_states)
+        amount_of_states = int(amount_of_states / 2)
+
+        theta_QUBIT_ = np.array([0.5*np.arcsin(x) for x in np.random.uniform(0,1,(amount_of_states,))])
+        phi_QUBIT_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        c0_QUBIT_ = np.array([np.sin(x) for x in theta_QUBIT_])
+        c1_QUBIT_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_QUBIT_, phi_QUBIT_)])
+
+        QUBIT_split_ = np.array([*[init_QUBIT(x,y,truncate,rounding) for x,y in zip(c0_QUBIT_, c1_QUBIT_)], *[init_QUBIT_sep(truncate,rounding) for _ in range(amount_of_states)]])
+
+        if entanglement:
+            entanglement_ = np.array([*[[1,0] for _ in range(amount_of_states)], *[[0,1] for _ in range(amount_of_states)]])
+            return QUBIT_split_[new_perm_], entanglement_[new_perm_]
+        return QUBIT_split_[new_perm_]
     
     else:
         print(f"{type} not possible")
@@ -409,7 +451,9 @@ def gen_config_filepath(confignumber):
     filename = "config" + str(confignumber) + ".json"
     return os.path.join(os.getcwd(),"Qreservoir_configurations", filename)
 
-def folder_name(gamma, res_size, fock_trunc, res_connect):
+def folder_name(gamma, res_size, fock_trunc, res_connect, cm=False):
+    if cm:
+        return str(gamma) + "_" + str(res_size) + "_" + str(fock_trunc) + "_" + str(res_connect) + "_cm"
     return str(gamma) + "_" + str(res_size) + "_" + str(fock_trunc) + "_" + str(res_connect)
 
 def gen_system_filepath(folder, systemnumber):

@@ -184,12 +184,23 @@ class QReservoir:
         return np.array([[1,0] if x[0] >= x[1] else [0,1] for x in Y_pred])
 
     def analyze_performance(self, Y_true, Y_pred):
-        count_ = 0
+        TP_ = 0
+        TN_ = 0
+        FN_ = 0
+        FP_ = 0
         for x, y in zip(Y_true, Y_pred):
-            if x[0] == y[0]:
-                count_ += 1
+            if y[0] - x[0] == 0:
+                if y[0] == 0:
+                    TN_ += 1
+                else:
+                    TP_ += 1
+            else:
+                if y[0] == 0:
+                    FN_ += 1
+                else:
+                    FP_ += 1
 
-        return count_ / len(Y_true)
+        return (TP_ + TN_) / len(Y_true), [TP_, TN_, FN_, FP_]
 
     def train_reservoir(self, inputs, entanglement_values):
         self.train_measured_observables = data_standardize(self.update_and_measure_reservoir(inputs))
