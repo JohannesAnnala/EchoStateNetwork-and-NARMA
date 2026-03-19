@@ -129,13 +129,11 @@ class QReservoir:
             #print(np.round(buffer,3))
             rho_new_ += self.rho_full[i*self.dims[1]:(i+1)*self.dims[1], i*self.dims[1]:(i+1)*self.dims[1]]
    
-        buffer = truncate_mantissa(np.kron(input, rho_new_),self.sim_precision)
-        tr_res = np.trace(rho_new_)
-        tr_new = np.trace(buffer)
-        print(f"tr_res: {tr_res}")
-        print(f"tr_new: {tr_new}")
+        buffer_ = truncate_mantissa(np.kron(input, rho_new_),self.sim_precision)
 
-        self.rho_full = buffer #truncate_mantissa(np.kron(input, rho_new_),self.sim_precision)
+        print(f"tr_dm: {np.trace(buffer_)}")
+
+        self.rho_full = buffer_ #truncate_mantissa(np.kron(input, rho_new_),self.sim_precision)
 
     def update_reservoir(self):
 
