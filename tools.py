@@ -116,7 +116,7 @@ def init_multipartite_dc_operators(doperators, sizes):
 
 def init_sq(alpha, truncate):
     a_ = init_destroy(truncate)
-    A_ = 1/2 * alpha * dagger(a_) @ dagger(a_) - np.conjugate(alpha) * a_ @ a_
+    A_ = 0.5 * (alpha * dagger(a_) @ dagger(a_) - np.conjugate(alpha) * a_ @ a_)
     return sp.linalg.expm(A_)
 
 def init_two_mode_sq(alpha, a1, a2):
@@ -216,30 +216,30 @@ def init_PSSV_sep(alpha1, alpha2, truncate, a, rounding=None):
     
     return tensor([sq_sub1_, sq_sub2_])
 
-def init_QUBIT(c0, c1, truncate, rounding=None):
+def init_NUM(c0, c1, truncate, rounding=None):
 
     vac_site_ = np.zeros((truncate**2,), dtype=np.complex64)
     vac_site_[0] = c0
     exit_site_ = np.zeros((truncate**2,), dtype=np.complex64)
     exit_site_[truncate+1] = c1
-    QUBIT_ = np.outer(vac_site_ + exit_site_, np.conj(vac_site_ + exit_site_))
+    NUM_ = np.outer(vac_site_ + exit_site_, np.conj(vac_site_ + exit_site_))
 
     if rounding:
-        return truncate_mantissa(QUBIT_, rounding)
+        return truncate_mantissa(NUM_, rounding)
     
-    return QUBIT_
+    return NUM_
 
-def init_QUBIT_sep(truncate, rounding=None):
-    QUBIT_ = np.zeros((truncate**2,truncate**2), dtype=np.complex64)
+def init_NUM_sep(truncate, rounding=None):
+    NUM_ = np.zeros((truncate**2,truncate**2), dtype=np.complex64)
     if np.random.choice(2,1):
-        QUBIT_[0,0] = 1
+        NUM_[0,0] = 1
     else:
-        QUBIT_[truncate+1,truncate+1] = 1
+        NUM_[truncate+1,truncate+1] = 1
 
     if rounding:
-        return truncate_mantissa(QUBIT_, rounding)
+        return truncate_mantissa(NUM_, rounding)
     
-    return QUBIT_
+    return NUM_
 
 #Creates two-mode input states in bulk
 def gen_input_states(type, amount_of_states, truncate, entanglement=False, rounding=None):
@@ -383,28 +383,28 @@ def gen_input_states(type, amount_of_states, truncate, entanglement=False, round
             return PSSV_split_[new_perm_], entanglement_[new_perm_]
         return PSSV_split_[new_perm_]
 
-    #Qubit states 
-    elif type == "QUBIT":
-        theta_QUBIT_ = np.array([0.5*np.arcsin(x) for x in np.random.uniform(0,1,(amount_of_states,))])
-        phi_QUBIT_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-        c0_QUBIT_ = np.array([np.sin(x) for x in theta_QUBIT_])
-        c1_QUBIT_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_QUBIT_, phi_QUBIT_)])
+    #Number states 
+    elif type == "NUM":
+        theta_NUM_ = np.array([0.5*np.arcsin(x) for x in np.random.uniform(0,1,(amount_of_states,))])
+        phi_NUM_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        c0_NUM_ = np.array([np.sin(x) for x in theta_NUM_])
+        c1_NUM_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_NUM_, phi_NUM_)])
 
-        QUBIT_ = np.array([init_QUBIT(x,y,truncate,rounding) for x,y in zip(c0_QUBIT_, c1_QUBIT_)])
-
-        if entanglement:
-            return QUBIT_, np.array([[1,0] for _ in range(amount_of_states)])
-        return QUBIT_  
-    
-    elif type == "QUBIT_sep":
-
-        QUBIT_sep_ = np.array([init_QUBIT_sep(truncate,rounding) for _ in range(amount_of_states)])
+        NUM_ = np.array([init_NUM(x,y,truncate,rounding) for x,y in zip(c0_NUM_, c1_NUM_)])
 
         if entanglement:
-            return QUBIT_sep_, np.array([[0,1] for _ in range(amount_of_states)])
-        return QUBIT_sep_  
+            return NUM_, np.array([[1,0] for _ in range(amount_of_states)])
+        return NUM_  
     
-    elif type == "QUBIT_split":
+    elif type == "NUM_sep":
+
+        NUM_sep_ = np.array([init_NUM_sep(truncate,rounding) for _ in range(amount_of_states)])
+
+        if entanglement:
+            return NUM_sep_, np.array([[0,1] for _ in range(amount_of_states)])
+        return NUM_sep_  
+    
+    elif type == "NUM_split":
         if amount_of_states % 2 != 0:
             print("For an equal split enter an even amount of states")
             return 0
@@ -412,17 +412,17 @@ def gen_input_states(type, amount_of_states, truncate, entanglement=False, round
         new_perm_ = np.random.permutation(amount_of_states)
         amount_of_states = int(amount_of_states / 2)
 
-        theta_QUBIT_ = np.array([0.5*np.arcsin(x) for x in np.random.uniform(0,1,(amount_of_states,))])
-        phi_QUBIT_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
-        c0_QUBIT_ = np.array([np.sin(x) for x in theta_QUBIT_])
-        c1_QUBIT_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_QUBIT_, phi_QUBIT_)])
+        theta_NUM_ = np.array([0.5*np.arcsin(x) for x in np.random.uniform(0,1,(amount_of_states,))])
+        phi_NUM_ = np.random.uniform(0,2*np.pi,(amount_of_states,))
+        c0_NUM_ = np.array([np.sin(x) for x in theta_NUM_])
+        c1_NUM_ = np.array([np.cos(x)*np.exp(1j*y) for x,y in zip(theta_NUM_, phi_NUM_)])
 
-        QUBIT_split_ = np.array([*[init_QUBIT(x,y,truncate,rounding) for x,y in zip(c0_QUBIT_, c1_QUBIT_)], *[init_QUBIT_sep(truncate,rounding) for _ in range(amount_of_states)]])
+        NUM_split_ = np.array([*[init_NUM(x,y,truncate,rounding) for x,y in zip(c0_NUM_, c1_NUM_)], *[init_NUM_sep(truncate,rounding) for _ in range(amount_of_states)]])
 
         if entanglement:
             entanglement_ = np.array([*[[1,0] for _ in range(amount_of_states)], *[[0,1] for _ in range(amount_of_states)]])
-            return QUBIT_split_[new_perm_], entanglement_[new_perm_]
-        return QUBIT_split_[new_perm_]
+            return NUM_split_[new_perm_], entanglement_[new_perm_]
+        return NUM_split_[new_perm_]
     
     else:
         print(f"{type} not possible")
