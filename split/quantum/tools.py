@@ -139,7 +139,7 @@ def truncate_mantissa(operator, decimals : int):
 
     if not np.isreal(operator).all():
         return np.trunc(operator.real * 10**decimals) / 10**decimals + 1j * (np.trunc(operator.imag * 10**decimals) / 10**decimals)
-    return np.trunc(operator.real * 10**decimals) / 10**decimals
+    return np.trunc(operator * 10**decimals) / 10**decimals
 
 def real_diag(operator : NDArray[Any]) -> NDArray[Any]:
     """
@@ -913,24 +913,6 @@ def unpack_config(filepath : str) -> tuple[np.float64, int, int, str, int, int, 
 
     return gamma_, reservoir_size_, fock_truncation_, res_connect_, sim_rounding_, n_models_, n_train_inputs_, n_test_inputs_
 
-def gen_narma_nmse_filepath(narma_degree : int | str) -> str:
-    """
-    Generates a filepath for writing results of NARMA evaluated with NMSE.
-    Assumes a directory of the variable 'dictname' exists in the working directory.
-
-    Parameters
-    ----------
-    narma_degree : Int value of the degree of NARMA
-
-    Returns
-    -------
-    A string value of the filepath
-    """
-
-    dictname = "reservoir_narma_nmse"
-    filename = "narma" + str(narma_degree) + "_nmse.csv"
-    return os.path.join(os.getcwd(),dictname, filename)
-
 def gen_config_filepath(confignumber : int | str) -> str:
     """
     Generates a filepath to fetch a given configuration of Qreservoir class simulation.
@@ -1030,19 +1012,3 @@ def finish_row(filepath : str) -> None:
     """
     with open(filepath, 'a') as file:
         file.write('0\n')
-
-def NMSE(true_values : NDArray[np.float64] | list[np.float64], predicted_values : NDArray[np.float64] | list[np.float64]) -> np.float64:
-    """
-    Calculates the normalized mean squared error of two sets of values
-
-    Parameters
-    ----------
-    true_values : A 2D Numpy array of the true values
-    predicted_values : A 2D Numpy array of the predicted values
-    
-    Returns
-    -------
-    A float value of NMSE
-    """
-
-    return sum([(x-y)**2 for x,y in zip(true_values, predicted_values)])/sum([x**2 for x in true_values])
