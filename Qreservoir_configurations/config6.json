@@ -1,0 +1,10 @@
+{
+    "GAMMA": 1,
+    "SIZE": 2,
+    "TRUNC": 5,
+    "CONNECT": "alltoall",
+    "ROUND": 12,
+    "MODELS": 10,
+    "TRAIN": 200,
+    "TEST": 200
+}
